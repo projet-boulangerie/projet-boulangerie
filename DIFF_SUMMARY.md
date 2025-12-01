@@ -4,8 +4,10 @@
 This document summarizes the differences between the `main` branch and the current branch `copilot/check-diff-with-main`.
 
 ## Commits
-Current branch has **1 additional commit** compared to main:
+Current branch has **3 additional commits** compared to main:
 - `9f799cc` - "Initial plan"
+- `d2fc8ba` - "docs: complete diff analysis with DIFF_SUMMARY.md"
+- `97c98d4` - "docs: enhance DIFF_SUMMARY with security and compatibility notes"
 
 ## File Changes
 
@@ -34,7 +36,7 @@ Changes made:
 - **Modified commit message checks**:
   - Changed from `--no-deploy` to `-no-deploy` (single dash instead of double dash)
   - Affects both the Build and Deploy steps
-  - ⚠️ **Note**: This changes the syntax from standard command-line convention (double dash for long options). Existing tools/scripts expecting `--no-deploy` will need to be updated to use `-no-deploy`
+  - ⚠️ **Note**: This violates standard command-line conventions where double dash (--) is used for long options and single dash (-) for short single-character options. The syntax `-no-deploy` is non-standard. Existing tools/scripts expecting `--no-deploy` will need to be updated to use `-no-deploy`
   
 - **Removed environment variable**:
   - Removed `NEXT_TELEMETRY_DISABLED: 1` from Build step
@@ -71,4 +73,4 @@ This means the file `.github/README_WORKFLOWS.md` will now be tracked by git if 
 ## Branch Information
 - **Current Branch**: copilot/check-diff-with-main
 - **Base Branch**: main (origin/main)
-- **Divergence**: 1 commit ahead of main
+- **Divergence**: 3 commits ahead of main (including 2 documentation commits for this analysis)
