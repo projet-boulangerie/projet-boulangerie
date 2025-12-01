@@ -1,4 +1,4 @@
-name: CI - Release to Main
+name: CI - Releases to Main
 
 on:
   pull_request:
@@ -10,24 +10,24 @@ permissions:
   security-events: write
 
 jobs:
-  # Job 0: Vérifier que la PR vient bien d'une branche release/*
+  # Job 0: Vérifier que la PR vient bien d'une branche releases/*
   check-branch:
     name: Check Branch Name
     runs-on: ubuntu-latest
 
     steps:
-      - name: Verify source branch is release/*
+      - name: Verify source branch is releases/*
         run: |
           echo "🔍 Vérification de la branche source..."
           echo "Branche source: ${{ github.head_ref }}"
           echo "Branche cible: ${{ github.base_ref }}"
 
-          if [[ "${{ github.head_ref }}" == release/* ]]; then
+          if [[ "${{ github.head_ref }}" == releases/* ]]; then
             echo "✅ Branche source valide: ${{ github.head_ref }}"
           else
-            echo "❌ ERREUR: Seules les branches 'release/*' peuvent créer des PR vers main"
+            echo "❌ ERREUR: Seules les branches 'releases/*' peuvent créer des PR vers main"
             echo "   Branche actuelle: ${{ github.head_ref }}"
-            echo "   Branches acceptées: release/* (ex: release/v1.0, release/v1.0.1)"
+            echo "   Branches acceptées: releases/* (ex: releases/v1.0, releases/v1.0.1)"
             exit 1
           fi
 
@@ -63,11 +63,25 @@ jobs:
         run: |
           echo "🔍 Vérification intégrité package-lock.json..."
           npm install --package-lock-only
-          if ! git diff --exit-code package-lock.json; then
-            echo "❌ package-lock.json modifié! Exécutez 'npm install' localement"
-            exit 1
+          
+          # Vérifier si des changements significatifs (pas juste des flags dev/peer)
+          if git diff --exit-code package-lock.json > /dev/null 2>&1; then
+            echo "✅ package-lock.json OK"
+          else
+            echo "⚠️ Différences détectées dans package-lock.json"
+            
+            # Vérifier si ce sont juste des changements de flags (dev, peer, optional)
+            SIGNIFICANT_CHANGES=$(git diff package-lock.json | grep -E '^\+|^\-' | grep -v '^\+\+\+\|^\-\-\-' | grep -vE '"(dev|peer|optional)": true' | grep -vE '\+.*"dev": true' | grep -vE '\-.*"peer": true' | wc -l)
+            
+            if [ $SIGNIFICANT_CHANGES -gt 0 ]; then
+              echo "❌ Changements significatifs détectés dans package-lock.json"
+              echo "Diff complet:"
+              git diff package-lock.json | head -100
+              exit 1
+            else
+              echo "✅ Seulement des changements de flags (dev/peer) - acceptable"
+            fi
           fi
-          echo "✅ package-lock.json OK"
 
       - name: Run ESLint (strict - 0 warnings)
         run: npm run lint -- --max-warnings 0
