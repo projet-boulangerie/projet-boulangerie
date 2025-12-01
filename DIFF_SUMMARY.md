@@ -34,6 +34,7 @@ Changes made:
 - **Modified commit message checks**:
   - Changed from `--no-deploy` to `-no-deploy` (single dash instead of double dash)
   - Affects both the Build and Deploy steps
+  - ⚠️ **Note**: This changes the syntax from standard command-line convention (double dash for long options). Existing tools/scripts expecting `--no-deploy` will need to be updated to use `-no-deploy`
   
 - **Removed environment variable**:
   - Removed `NEXT_TELEMETRY_DISABLED: 1` from Build step
@@ -58,7 +59,10 @@ This means the file `.github/README_WORKFLOWS.md` will now be tracked by git if 
 
 ### CI/CD Pipeline Impact
 1. **Production security gate removed**: The comprehensive production release workflow with zero-tolerance security checks is no longer present
+   - ⚠️ **Security Consideration**: This removes automated npm audit, Trivy scanning, secrets detection, and ESLint security checks that were enforced before merging to main
+   - **Recommendation**: If this is a temporary removal during development, consider re-implementing security scanning before production releases. Alternative security measures should be put in place.
 2. **Simplified deployment**: The deploy workflow is now simpler without caching and telemetry settings
+   - **Performance Note**: Removing npm and Next.js caching may increase build times
 3. **Commit message syntax changed**: Deploy skip functionality now uses single dash (`-no-deploy`) instead of double dash
 
 ### Repository Configuration Impact
