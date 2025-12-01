@@ -10,7 +10,7 @@
     "deploy": "next build && touch out/.nojekyll && git add out/ && git commit -m \"Deploy to gh-pages\" && git subtree push --prefix out origin gh-pages"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.1.6",
+    "@tailwindcss/postcss": "^4.1.17",
     "lucide-react": "^0.545.0",
     "next": "^15.5.3",
     "react": "^19.1.1",
