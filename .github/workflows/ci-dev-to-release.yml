@@ -1,0 +1,356 @@
+name: CI - Dev to Release
+
+on:
+  pull_request:
+    branches: [ 'release/**' ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Job unique: build + lint + audit
+  validate:
+    name: Build & Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      critical: ${{ steps.vuln-check.outputs.critical }}
+      high: ${{ steps.vuln-check.outputs.high }}
+      moderate: ${{ steps.vuln-check.outputs.moderate }}
+      low: ${{ steps.vuln-check.outputs.low }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build static site
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Scan for secrets & sensitive files
+        run: |
+          echo "🔍 DevSecOps Security Scan..."
+          echo ""
+
+          FOUND=0
+
+          # 1. Fichiers sensibles qui ne devraient JAMAIS être commités
+          echo "📁 Recherche de fichiers sensibles..."
+          SENSITIVE_FILES=$(find . -type f \( \
+            -name "*.pem" -o \
+            -name "*.key" -o \
+            -name "*.p12" -o \
+            -name "*.pfx" -o \
+            -name "*password*" -o \
+            -name "*secret*" -o \
+            -name "*credential*" -o \
+            -name ".env" -o \
+            -name ".env.local" -o \
+            -name ".env.production" \
+          \) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/out/*" 2>/dev/null)
+
+          if [ ! -z "$SENSITIVE_FILES" ]; then
+            echo "⚠️ Fichiers sensibles détectés:"
+            echo "$SENSITIVE_FILES"
+            FOUND=1
+          else
+            echo "✅ Pas de fichiers sensibles"
+          fi
+          echo ""
+
+          # 2. Secrets hardcodés dans le code (patterns communs)
+          echo "🔐 Recherche de secrets hardcodés..."
+
+          # API Keys (format typique: 15+ caractères alphanumériques)
+          if grep -r -E "(api[_-]?key|apikey)\s*[=:]\s*['\"][a-zA-Z0-9_-]{15,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "⚠️ API key potentielle détectée"
+            grep -rn -E "(api[_-]?key|apikey)\s*[=:]\s*['\"][a-zA-Z0-9_-]{15,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Tokens (GitHub, JWT, etc.)
+          if grep -r -E "(token|bearer|auth)\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "⚠️ Token potentiel détecté"
+            grep -rn -E "(token|bearer|auth)\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Passwords hardcodés
+          if grep -r -E "(password|passwd|pwd)\s*[=:]\s*['\"][^'\"]{3,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "⚠️ Password hardcodé détecté"
+            grep -rn -E "(password|passwd|pwd)\s*[=:]\s*['\"][^'\"]{3,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Private keys
+          if grep -r "BEGIN.*PRIVATE KEY" . \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.txt" --include="*.pem" \
+            -not -path "*/node_modules/*" -not -path "*/.git/*" \
+            2>/dev/null; then
+            echo "⚠️ Private key détectée"
+            grep -rn "BEGIN.*PRIVATE KEY" . \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.txt" --include="*.pem" \
+              -not -path "*/node_modules/*" -not -path "*/.git/*" \
+              2>/dev/null
+            FOUND=1
+          fi
+
+          if [ $FOUND -eq 0 ]; then
+            echo "✅ Pas de secrets hardcodés détectés"
+          fi
+          echo ""
+
+          # 3. URLs/endpoints sensibles (best practice: utiliser variables d'env)
+          echo "🌐 Vérification des URLs hardcodées..."
+          HARDCODED_URLS=$(grep -r -E "(https?://[a-zA-Z0-9.-]+\.(com|net|org|io))" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null | \
+            grep -v "github.com" | \
+            grep -v "nextjs.org" | \
+            grep -v "vercel.com" | \
+            grep -v "localhost" | \
+            grep -v "example.com" | \
+            wc -l)
+
+          if [ "$HARDCODED_URLS" -gt 0 ]; then
+            echo "ℹ️  $HARDCODED_URLS URL(s) hardcodée(s) trouvée(s)"
+            echo "   Conseil: Utiliser des variables d'environnement pour les URLs d'API"
+          else
+            echo "✅ Pas d'URLs sensibles hardcodées"
+          fi
+          echo ""
+
+          # Résumé final
+          if [ $FOUND -eq 1 ]; then
+            echo "⚠️  SECRETS/FICHIERS SENSIBLES DÉTECTÉS"
+            echo "   → Non bloquant pour dev, mais à corriger avant release"
+          else
+            echo "✅ Scan de sécurité DevSecOps OK"
+          fi
+        continue-on-error: true
+
+      - name: Check for vulnerabilities (RELEASE GATE)
+        id: vuln-check
+        run: |
+          echo "🔍 npm audit - Gate vers Release..."
+          echo "📋 Politique: 0 critical, 0 high, <5 moderate, <10 low"
+          echo ""
+          
+          # Capturer la sortie de npm audit
+          set +e
+          AUDIT_OUTPUT=$(npm audit --json 2>&1)
+          AUDIT_EXIT=$?
+          set -e
+          
+          # Parser les résultats JSON
+          CRITICAL=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.critical // 0' 2>/dev/null || echo "0")
+          HIGH=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.high // 0' 2>/dev/null || echo "0")
+          MODERATE=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.moderate // 0' 2>/dev/null || echo "0")
+          LOW=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.low // 0' 2>/dev/null || echo "0")
+          
+          echo "📊 Résultats du scan:"
+          echo "- Critical severity vulnerabilities: $CRITICAL"
+          echo "- High severity vulnerabilities: $HIGH"
+          echo "- Moderate severity vulnerabilities: $MODERATE"
+          echo "- Low severity vulnerabilities: $LOW"
+          echo ""
+          
+          # Export vers output pour le summary
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+          
+          # Vérifier les seuils
+          FAILED=0
+          
+          if [ $CRITICAL -gt 0 ]; then
+            echo "❌ BLOQUÉ: $CRITICAL vulnérabilité(s) CRITICAL (seuil: 0)"
+            FAILED=1
+          fi
+          
+          if [ $HIGH -gt 0 ]; then
+            echo "❌ BLOQUÉ: $HIGH vulnérabilité(s) HIGH (seuil: 0)"
+            FAILED=1
+          fi
+          
+          if [ $MODERATE -ge 5 ]; then
+            echo "❌ BLOQUÉ: $MODERATE vulnérabilité(s) MODERATE (seuil: <5)"
+            FAILED=1
+          fi
+          
+          if [ $LOW -ge 10 ]; then
+            echo "❌ BLOQUÉ: $LOW vulnérabilité(s) LOW (seuil: <10)"
+            FAILED=1
+          fi
+          
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "🔧 Actions requises:"
+            echo "  1. Exécutez: npm audit fix"
+            echo "  2. Si impossible: npm audit fix --force (attention aux breaking changes)"
+            echo "  3. Mettez à jour manuellement les dépendances si nécessaire"
+            echo ""
+            npm audit || true
+            exit 1
+          fi
+          
+          echo "✅ Seuils de vulnérabilités respectés - OK pour release"
+          
+          # Afficher les vulnérabilités restantes (warning seulement)
+          if [ $MODERATE -gt 0 ] || [ $LOW -gt 0 ]; then
+            echo ""
+            echo "ℹ️  Vulnérabilités dans les limites acceptables:"
+            [ $MODERATE -gt 0 ] && echo "  - $MODERATE moderate (acceptable: <5)"
+            [ $LOW -gt 0 ] && echo "  - $LOW low (acceptable: <10)"
+            echo ""
+            echo "📋 Détails des vulnérabilités:"
+            npm audit || true
+          fi
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "# 📊 CI - Dev to Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Vulnérabilités npm audit:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Critical severity vulnerabilities:** ${{ steps.vuln-check.outputs.critical || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **High severity vulnerabilities:** ${{ steps.vuln-check.outputs.high || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Moderate severity vulnerabilities:** ${{ steps.vuln-check.outputs.moderate || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Low severity vulnerabilities:** ${{ steps.vuln-check.outputs.low || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Seuils pour Release:" >> $GITHUB_STEP_SUMMARY
+          echo "- Critical: **0** (actuel: ${{ steps.vuln-check.outputs.critical || 'N/A' }})" >> $GITHUB_STEP_SUMMARY
+          echo "- High: **0** (actuel: ${{ steps.vuln-check.outputs.high || 'N/A' }})" >> $GITHUB_STEP_SUMMARY
+          echo "- Moderate: **<5** (actuel: ${{ steps.vuln-check.outputs.moderate || 'N/A' }})" >> $GITHUB_STEP_SUMMARY
+          echo "- Low: **<10** (actuel: ${{ steps.vuln-check.outputs.low || 'N/A' }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📌 **Prochaine étape:** release → main (0 vulnérabilité tolérée)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check bundle size (info)
+        run: |
+          echo "📦 Build output size:"
+          du -sh out/
+          ls -lh out/ | head -20
+
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const jobResult = '${{ job.status }}';
+            const critical = '${{ steps.vuln-check.outputs.critical }}' || '0';
+            const high = '${{ steps.vuln-check.outputs.high }}' || '0';
+            const moderate = '${{ steps.vuln-check.outputs.moderate }}' || '0';
+            const low = '${{ steps.vuln-check.outputs.low }}' || '0';
+
+            const allPassed = jobResult === 'success';
+            const statusEmoji = allPassed ? '✅' : '❌';
+            const statusText = allPassed ? 'Tous les checks sont passés !' : 'Certains checks ont échoué';
+
+            let vulnWarning = '';
+            if (critical > 0 || high > 0 || moderate >= 5 || low >= 10) {
+              vulnWarning = '\n\n⚠️ **Action requise:** Vulnérabilités détectées au-dessus des seuils acceptables.';
+            } else if (moderate > 0 || low > 0) {
+              vulnWarning = '\n\nℹ️ Vulnérabilités dans les limites acceptables (pas de blocage).';
+            }
+
+            const comment = `## ${statusEmoji} CI Dev → Release - ${statusText}
+
+            ### 📊 Résultat du build
+
+            | Étape | Statut |
+            |-------|--------|
+            | **Build & Security Check** | ${allPassed ? '✅ Succès' : '❌ Échec'} |
+
+            ### 🔒 Vulnérabilités npm audit
+
+            | Criticité | Nombre | Seuil |
+            |-----------|--------|-------|
+            | **Critical** | ${critical} | 0 |
+            | **High** | ${high} | 0 |
+            | **Moderate** | ${moderate} | < 5 |
+            | **Low** | ${low} | < 10 |
+            ${vulnWarning}
+
+            ### 📌 Prochaine étape
+            Une fois mergée dans \`release/*\`, cette branche devra passer le check **release → main** avec **0 vulnérabilité tolérée**.
+
+            ---
+
+            <sub>🤖 Commentaire automatique généré par la CI • [Voir les détails complets](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`;
+
+            // Trouver un éventuel commentaire précédent de la CI
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('CI Dev → Release -')
+            );
+
+            // Mettre à jour le commentaire existant ou en créer un nouveau
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }

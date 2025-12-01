@@ -1,0 +1,14 @@
+# CODEOWNERS - Ownership pour revues obligatoires
+# Doc: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Par défaut, tout le monde de l'équipe peut review
+# Remplacez par vos vrais usernames GitHub (4 personnes max)
+* @elfamosoworker @aircag
+
+# Fichiers critiques (requiert approval d'un des owners ci-dessus)
+package.json @elfamosoworker @aircag
+package-lock.json @elfamosoworker @aircag
+.github/workflows/ @elfamosoworker @aircag
+
+# ⚠️ CRITIQUE: CODEOWNERS lui-même (empêche la modification non autorisée)
+.github/CODEOWNERS @elfamosoworker @aircag
