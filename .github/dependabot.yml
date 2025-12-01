@@ -1,0 +1,30 @@
+# Dependabot - Auto-updates des dépendances
+# Doc: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  # npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"  # Check chaque semaine
+      day: "monday"
+    open-pull-requests-limit: 5  # Max 5 PRs ouvertes en même temps
+
+    # Grouper les updates mineures ensemble
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+
+    labels:
+      - "dependencies"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"  # Moins fréquent
+    labels:
+      - "dependencies"
+      - "github-actions"

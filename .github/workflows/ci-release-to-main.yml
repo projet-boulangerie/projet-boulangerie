@@ -1,0 +1,678 @@
+name: CI - Releases to Main
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  # Job 0: Vérifier que la PR vient bien d'une branche releases/*
+  check-branch:
+    name: Check Branch Name
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verify source branch is releases/*
+        run: |
+          echo "🔍 Vérification de la branche source..."
+          echo "Branche source: ${{ github.head_ref }}"
+          echo "Branche cible: ${{ github.base_ref }}"
+
+          if [[ "${{ github.head_ref }}" == releases/* ]]; then
+            echo "✅ Branche source valide: ${{ github.head_ref }}"
+          else
+            echo "❌ ERREUR: Seules les branches 'releases/*' peuvent créer des PR vers main"
+            echo "   Branche actuelle: ${{ github.head_ref }}"
+            echo "   Branches acceptées: releases/* (ex: releases/v1.0, releases/v1.0.1)"
+            exit 1
+          fi
+
+  # Job 1: Validation production stricte
+  validate-production:
+    name: Build & Lint (Strict)
+    runs-on: ubuntu-latest
+    needs: [check-branch]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify package-lock integrity
+        run: |
+          echo "🔍 Vérification intégrité package-lock.json..."
+          npm install --package-lock-only
+          if ! git diff --exit-code package-lock.json; then
+            echo "❌ package-lock.json modifié! Exécutez 'npm install' localement"
+            exit 1
+          fi
+          echo "✅ package-lock.json OK"
+
+      - name: Run ESLint (strict - 0 warnings)
+        run: npm run lint -- --max-warnings 0
+
+      - name: Build production
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "out" ] || [ ! -f "out/index.html" ]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
+      - name: Upload build for next jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: out/
+          retention-days: 7
+
+  # Job 2: Security scanning approfondi
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: validate-production
+    timeout-minutes: 15
+    outputs:
+      critical: ${{ steps.npm-audit.outputs.critical }}
+      high: ${{ steps.npm-audit.outputs.high }}
+      moderate: ${{ steps.npm-audit.outputs.moderate }}
+      low: ${{ steps.npm-audit.outputs.low }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 1. npm audit STRICT - PRODUCTION (0 vulnérabilités tolérées)
+      - name: npm audit (PRODUCTION - ZERO TOLERANCE)
+        id: npm-audit
+        run: |
+          echo "🔍 npm audit en mode PRODUCTION (STRICT)..."
+          echo "📋 Politique: 0 vulnérabilité tolérée (toutes criticités)"
+          echo ""
+
+          # Capturer la sortie de npm audit
+          set +e
+          AUDIT_OUTPUT=$(npm audit --json 2>&1)
+          AUDIT_EXIT=$?
+          set -e
+
+          # Parser les résultats JSON
+          CRITICAL=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.critical // 0' 2>/dev/null || echo "0")
+          HIGH=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.high // 0' 2>/dev/null || echo "0")
+          MODERATE=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.moderate // 0' 2>/dev/null || echo "0")
+          LOW=$(echo "$AUDIT_OUTPUT" | jq -r '.metadata.vulnerabilities.low // 0' 2>/dev/null || echo "0")
+
+          echo "📊 Résultats du scan:"
+          echo "- Critical severity vulnerabilities: $CRITICAL"
+          echo "- High severity vulnerabilities: $HIGH"
+          echo "- Moderate severity vulnerabilities: $MODERATE"
+          echo "- Low severity vulnerabilities: $LOW"
+          echo ""
+
+          # Export vers output pour le summary
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+
+          TOTAL=$((CRITICAL + HIGH + MODERATE + LOW))
+
+          if [ $TOTAL -gt 0 ]; then
+            echo "❌ BLOQUÉ: $TOTAL vulnérabilité(s) détectée(s)"
+            echo "❌ Politique PRODUCTION: ZERO vulnérabilité tolérée"
+            echo ""
+            echo "🔧 Actions requises:"
+            echo "  1. Exécutez: npm audit fix"
+            echo "  2. Si impossible à corriger automatiquement: npm audit fix --force"
+            echo "  3. Vérifiez les breaking changes après --force"
+            echo "  4. Mettez à jour manuellement si nécessaire"
+            echo ""
+            npm audit --production || true
+            exit 1
+          fi
+
+          echo "✅ Aucune vulnérabilité détectée - PRODUCTION OK"
+
+      # 2. Trivy - Scan des dépendances (gratuit, rapide)
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'  # Bloque si critical/high
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # 3. ESLint security plugin
+      - name: Install ESLint Security Plugin
+        run: npm install --no-save eslint-plugin-security
+
+      - name: Run ESLint Security checks
+        run: |
+          cat > eslint.security.config.mjs << 'EOF'
+          import security from 'eslint-plugin-security';
+
+          export default [
+            {
+              ignores: ["node_modules/**", ".next/**", "out/**"]
+            },
+            {
+              files: ["**/*.{js,jsx,ts,tsx}"],
+              plugins: {
+                security
+              },
+              rules: {
+                'security/detect-object-injection': 'error',
+                'security/detect-non-literal-regexp': 'warn',
+                'security/detect-unsafe-regex': 'error',
+                'security/detect-buffer-noassert': 'error',
+                'security/detect-child-process': 'error',
+                'security/detect-eval-with-expression': 'error',
+                'security/detect-non-literal-fs-filename': 'warn',
+                'security/detect-possible-timing-attacks': 'warn',
+                'security/detect-pseudoRandomBytes': 'error'
+              }
+            }
+          ];
+          EOF
+
+          npx eslint . --config eslint.security.config.mjs --ext .js,.jsx,.ts,.tsx || {
+            echo "❌ Problèmes de sécurité détectés"
+            exit 1
+          }
+          echo "✅ ESLint security checks passed"
+
+      # 4. Secrets scanning - DevSecOps amélioré (BLOQUANT pour production)
+      - name: Scan for secrets & sensitive files
+        run: |
+          echo "🔍 DevSecOps Security Scan (PRODUCTION - STRICT)..."
+          echo ""
+
+          FOUND=0
+
+          # 1. Fichiers sensibles qui ne devraient JAMAIS être commités
+          echo "📁 Recherche de fichiers sensibles..."
+          SENSITIVE_FILES=$(find . -type f \( \
+            -name "*.pem" -o \
+            -name "*.key" -o \
+            -name "*.p12" -o \
+            -name "*.pfx" -o \
+            -name "*password*" -o \
+            -name "*secret*" -o \
+            -name "*credential*" -o \
+            -name ".env" -o \
+            -name ".env.local" -o \
+            -name ".env.production" \
+          \) -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/out/*" 2>/dev/null)
+
+          if [ ! -z "$SENSITIVE_FILES" ]; then
+            echo "❌ Fichiers sensibles détectés:"
+            echo "$SENSITIVE_FILES"
+            FOUND=1
+          else
+            echo "✅ Pas de fichiers sensibles"
+          fi
+          echo ""
+
+          # 2. Secrets hardcodés dans le code (patterns communs)
+          echo "🔐 Recherche de secrets hardcodés..."
+
+          # API Keys (format typique: 15+ caractères alphanumériques)
+          if grep -r -E "(api[_-]?key|apikey)\s*[=:]\s*['\"][a-zA-Z0-9_-]{15,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "❌ API key potentielle détectée"
+            grep -rn -E "(api[_-]?key|apikey)\s*[=:]\s*['\"][a-zA-Z0-9_-]{15,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Tokens (GitHub, JWT, etc.)
+          if grep -r -E "(token|bearer|auth)\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "❌ Token potentiel détecté"
+            grep -rn -E "(token|bearer|auth)\s*[=:]\s*['\"][a-zA-Z0-9_-]{20,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Passwords hardcodés
+          if grep -r -E "(password|passwd|pwd)\s*[=:]\s*['\"][^'\"]{3,}['\"]" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null; then
+            echo "❌ Password hardcodé détecté"
+            grep -rn -E "(password|passwd|pwd)\s*[=:]\s*['\"][^'\"]{3,}['\"]" \
+              app/ components/ lib/ \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+              2>/dev/null | head -5
+            FOUND=1
+          fi
+
+          # Private keys
+          if grep -r "BEGIN.*PRIVATE KEY" . \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.txt" --include="*.pem" \
+            -not -path "*/node_modules/*" -not -path "*/.git/*" \
+            2>/dev/null; then
+            echo "❌ Private key détectée"
+            grep -rn "BEGIN.*PRIVATE KEY" . \
+              --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.txt" --include="*.pem" \
+              -not -path "*/node_modules/*" -not -path "*/.git/*" \
+              2>/dev/null
+            FOUND=1
+          fi
+
+          if [ $FOUND -eq 0 ]; then
+            echo "✅ Pas de secrets hardcodés détectés"
+          fi
+          echo ""
+
+          # 3. URLs/endpoints sensibles (best practice: utiliser variables d'env)
+          echo "🌐 Vérification des URLs hardcodées..."
+          HARDCODED_URLS=$(grep -r -E "(https?://[a-zA-Z0-9.-]+\.(com|net|org|io))" \
+            app/ components/ lib/ \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+            2>/dev/null | \
+            grep -v "github.com" | \
+            grep -v "nextjs.org" | \
+            grep -v "vercel.com" | \
+            grep -v "localhost" | \
+            grep -v "example.com" | \
+            wc -l)
+
+          if [ "$HARDCODED_URLS" -gt 0 ]; then
+            echo "ℹ️  $HARDCODED_URLS URL(s) hardcodée(s) trouvée(s)"
+            echo "   Conseil: Utiliser des variables d'environnement pour les URLs d'API"
+          else
+            echo "✅ Pas d'URLs sensibles hardcodées"
+          fi
+          echo ""
+
+          # Résumé final - BLOQUANT pour production
+          if [ $FOUND -eq 1 ]; then
+            echo "❌ SECRETS/FICHIERS SENSIBLES DÉTECTÉS"
+            echo "   → BLOQUÉ pour production - Corriger avant de merger vers main"
+            exit 1
+          else
+            echo "✅ Scan de sécurité DevSecOps OK"
+          fi
+
+      # 5. Vérifier fichiers sensibles (ancienne méthode - conservée pour compatibilité)
+      - name: Check for sensitive files (legacy)
+        run: |
+          echo "🔍 Vérification supplémentaire de fichiers sensibles..."
+
+          SENSITIVE_PATTERNS=(".env" ".env.local" ".env.production" "credentials.json" "*.pem" "*.key" "id_rsa")
+          FOUND=0
+
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if find . -name "$pattern" -not -path "*/node_modules/*" -not -path "*/.git/*" | grep -q .; then
+              echo "❌ Fichier sensible trouvé: $pattern"
+              find . -name "$pattern" -not -path "*/node_modules/*" -not -path "*/.git/*"
+              FOUND=1
+            fi
+          done
+
+          if [ $FOUND -eq 1 ]; then
+            echo "❌ FICHIERS SENSIBLES - Ne doivent pas être commités"
+            exit 1
+          fi
+
+          echo "✅ Aucun fichier sensible"
+
+  # Job 3: Code quality & analysis
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    needs: validate-production
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Check console.log en production
+      - name: Check for console statements
+        run: |
+          echo "🔍 Recherche de console.log..."
+
+          if grep -r "console\.\(log\|debug\|info\)" app/ components/ lib/ --include="*.tsx" --include="*.ts" 2>/dev/null; then
+            echo "⚠️ console.log/debug/info détectés en production"
+            echo "Considérez les retirer pour la production"
+            # Warning seulement, pas bloquant
+          else
+            echo "✅ Pas de console.log"
+          fi
+
+      # Check TODO/FIXME critiques
+      - name: Check for critical TODOs
+        run: |
+          echo "🔍 Recherche de TODOs critiques..."
+
+          if grep -r "TODO.*\(SECURITY\|CRITICAL\|URGENT\)" . --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null; then
+            echo "❌ TODOs critiques détectés"
+            exit 1
+          fi
+
+          if grep -r "FIXME.*\(SECURITY\|CRITICAL\)" . --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null; then
+            echo "❌ FIXMEs critiques détectés"
+            exit 1
+          fi
+
+          echo "✅ Pas de TODOs critiques"
+
+      # Vérifier dangerouslySetInnerHTML
+      - name: Check for dangerous React patterns
+        run: |
+          echo "🔍 Recherche de patterns React dangereux..."
+
+          if grep -r "dangerouslySetInnerHTML" app/ components/ --include="*.tsx" 2>/dev/null; then
+            echo "⚠️ dangerouslySetInnerHTML détecté - vérifier XSS"
+            grep -rn "dangerouslySetInnerHTML" app/ components/ --include="*.tsx"
+            # Warning seulement
+          fi
+
+          echo "✅ Check React patterns OK"
+
+      # TypeScript strict verification
+      - name: Verify TypeScript strict mode
+        run: |
+          echo "🔍 Vérification TypeScript strict..."
+
+          if ! grep -q '"strict".*true' tsconfig.json; then
+            echo "❌ TypeScript strict mode non activé"
+            exit 1
+          fi
+
+          echo "✅ TypeScript strict mode activé"
+
+  # Job 4: Build analysis & performance
+  build-analysis:
+    name: Build Analysis
+    runs-on: ubuntu-latest
+    needs: validate-production
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download production build
+        uses: actions/download-artifact@v4
+        with:
+          name: production-build
+          path: out/
+
+      # Analyser la taille du build
+      - name: Analyze build size
+        run: |
+          echo "📊 Analyse du build production..."
+
+          TOTAL_SIZE=$(du -sh out/ | cut -f1)
+          echo "Taille totale: $TOTAL_SIZE"
+
+          echo "📄 Top 10 plus gros fichiers:"
+          find out -type f -exec ls -lh {} \; | sort -k5 -hr | head -10
+
+          # Warning si build trop gros (>10MB pour un site statique)
+          SIZE_BYTES=$(du -sb out/ | cut -f1)
+          if [ $SIZE_BYTES -gt 10485760 ]; then
+            echo "⚠️ Build > 10MB - Considérer l'optimisation"
+          fi
+
+          echo "✅ Analyse build complétée"
+
+      # Vérifier structure du build
+      - name: Verify build structure
+        run: |
+          echo "🔍 Vérification structure du build..."
+
+          # Fichiers requis
+          [ -f "out/index.html" ] || { echo "❌ index.html manquant"; exit 1; }
+          [ -d "out/_next" ] || { echo "❌ Dossier _next manquant"; exit 1; }
+
+          # Compter les assets
+          HTML_COUNT=$(find out -name "*.html" | wc -l)
+          JS_COUNT=$(find out -name "*.js" | wc -l)
+
+          echo "HTML files: $HTML_COUNT"
+          echo "JS files: $JS_COUNT"
+
+          if [ $HTML_COUNT -eq 0 ]; then
+            echo "❌ Aucun fichier HTML"
+            exit 1
+          fi
+
+          echo "✅ Structure du build OK"
+
+      # Test basique du HTML généré
+      - name: Basic HTML validation
+        run: |
+          echo "🔍 Validation HTML basique..."
+
+          # Vérifier que index.html est valide
+          if ! grep -q "<!DOCTYPE html>" out/index.html; then
+            echo "❌ DOCTYPE HTML manquant"
+            exit 1
+          fi
+
+          if ! grep -q "<html" out/index.html; then
+            echo "❌ Tag HTML manquant"
+            exit 1
+          fi
+
+          echo "✅ HTML validation OK"
+
+  # Job 5: Production gate final
+  production-gate:
+    name: Final Production Gate
+    runs-on: ubuntu-latest
+    needs: [validate-production, security-scan, code-quality, build-analysis]
+
+    steps:
+      - name: Production gate summary
+        run: |
+          echo "# 🔒 Production Security Gate - PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Tous les checks de sécurité sont passés" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### 📊 Vulnérabilités npm audit:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Critical severity vulnerabilities:** ${{ needs.security-scan.outputs.critical || '0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **High severity vulnerabilities:** ${{ needs.security-scan.outputs.high || '0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Moderate severity vulnerabilities:** ${{ needs.security-scan.outputs.moderate || '0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Low severity vulnerabilities:** ${{ needs.security-scan.outputs.low || '0' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎯 **Politique PRODUCTION: 0 vulnérabilité (toutes criticités)**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Jobs validés:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build & Lint (Strict)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security Scanning (npm audit, Trivy, ESLint security)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code Quality Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Sécurité:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Aucune vulnérabilité high/critical" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Aucun secret détecté" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Aucun fichier sensible" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ESLint security OK" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ TypeScript strict mode" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Ready for production deployment**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Success
+        run: |
+          echo "✅ =================================================="
+          echo "✅  PRODUCTION GATE PASSED"
+          echo "✅  All security checks successful"
+          echo "✅  Ready to merge to main"
+          echo "✅ =================================================="
+
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const validateProd = '${{ needs.validate-production.result }}';
+            const securityScan = '${{ needs.security-scan.result }}';
+            const codeQuality = '${{ needs.code-quality.result }}';
+            const buildAnalysis = '${{ needs.build-analysis.result }}';
+            const critical = '${{ needs.security-scan.outputs.critical }}' || '0';
+            const high = '${{ needs.security-scan.outputs.high }}' || '0';
+            const moderate = '${{ needs.security-scan.outputs.moderate }}' || '0';
+            const low = '${{ needs.security-scan.outputs.low }}' || '0';
+
+            const allPassed = validateProd === 'success' && securityScan === 'success' && codeQuality === 'success' && buildAnalysis === 'success';
+            const statusEmoji = allPassed ? '🎉' : '❌';
+            const statusText = allPassed ? 'PRODUCTION GATE PASSED' : 'Production gate failed';
+
+            const totalVuln = parseInt(critical) + parseInt(high) + parseInt(moderate) + parseInt(low);
+            let vulnWarning = '';
+            if (totalVuln > 0) {
+              vulnWarning = '\n\n❌ **BLOQUÉ:** Politique PRODUCTION - ZERO vulnérabilité tolérée';
+            } else {
+              vulnWarning = '\n\n✅ **Aucune vulnérabilité détectée - Ready for production!**';
+            }
+
+            const comment = `## ${statusEmoji} CI Release → Main (PRODUCTION) - ${statusText}
+
+            ### 📊 Résultats des jobs de production
+
+            | Job | Statut |
+            |-----|--------|
+            | **Build & Lint (Strict)** | ${validateProd === 'success' ? '✅ Succès' : '❌ Échec'} |
+            | **Security Scanning** | ${securityScan === 'success' ? '✅ Succès' : '❌ Échec'} |
+            | **Code Quality Analysis** | ${codeQuality === 'success' ? '✅ Succès' : '❌ Échec'} |
+            | **Build Analysis** | ${buildAnalysis === 'success' ? '✅ Succès' : '❌ Échec'} |
+
+            ### 🔒 Vulnérabilités npm audit (ZERO TOLERANCE)
+
+            | Criticité | Nombre | Seuil PRODUCTION |
+            |-----------|--------|------------------|
+            | **Critical** | ${critical} | **0** |
+            | **High** | ${high} | **0** |
+            | **Moderate** | ${moderate} | **0** |
+            | **Low** | ${low} | **0** |
+            ${vulnWarning}
+
+            ### 🛡️ Sécurité Production
+            ${allPassed ? `
+            - ✅ npm audit: ZERO vulnérabilité
+            - ✅ Trivy scan: Aucune vulnérabilité critique/haute
+            - ✅ Secrets scan: Aucun secret détecté
+            - ✅ ESLint security: Aucun problème
+            - ✅ TypeScript strict mode: Activé
+            ` : `
+            - ⚠️ Certains checks de sécurité ont échoué
+            - 📋 Consultez les logs pour plus de détails
+            `}
+
+            ---
+
+            <sub>🤖 Commentaire automatique généré par la CI • [Voir les détails complets](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>`;
+
+            // Trouver un éventuel commentaire précédent de la CI
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('CI Release → Main')
+            );
+
+            // Mettre à jour le commentaire existant ou en créer un nouveau
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
