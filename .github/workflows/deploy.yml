@@ -36,13 +36,13 @@ jobs:
         run: npm run lint
 
       - name: Build
-        if: "!contains(github.event.head_commit.message, '-no-deploy')"
+        if: "!contains(github.event.head_commit.message, '--no-deploy')"
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
 
       - name: Deploy to GitHub Pages
-        if: "!contains(github.event.head_commit.message, '-no-deploy')"
+        if: "!contains(github.event.head_commit.message, '--no-deploy')"
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
