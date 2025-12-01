@@ -18,8 +18,8 @@ export default function MentionsLegalesContent() {
           </li>
           <li className="flex items-center gap-2">
             <Mail className="w-4 h-4 text-boulange-gold" />
-            <a href="mailto:projet-boulangerie@yoloweb.fr" className="underline">
-              projet-boulangerie@yoloweb.fr
+            <a href="mailto:projet-boulangerie-org@proton.me" className="underline">
+              projet-boulangerie-org@proton.me
             </a>
           </li>
         </ul>

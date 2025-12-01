@@ -6,7 +6,7 @@ Thumbs.db
 !.vscode/extensions.json
 .claude/
 
-.workflows/*.md
+.workflows/README_WORKFLOWS.md
 
 node_modules/
 .env*

@@ -23,6 +23,11 @@ export default function Home() {
                 <button className="nav-button text-base text-white">Croissanter</button>
               </Link>
             </li>
+            <li>
+              <Link href='/baguette' rel="noopener noreferrer">
+                <button className="nav-button text-base text-white">Baguette</button>
+              </Link>
+            </li>
           </ul>
         </div>
       </nav>
