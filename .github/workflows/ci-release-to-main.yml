@@ -193,7 +193,7 @@ jobs:
 
       # 2. Trivy - Scan des dépendances (gratuit, rapide)
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
