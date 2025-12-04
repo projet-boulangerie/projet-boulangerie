@@ -1,29 +1,52 @@
-﻿# Projet Boulangerie
+﻿﻿# Projet Boulangerie
 
-Une application web moderne (next.js) pour présenter la Guilde de la Boulangerie et son équipe royale.
+Une application web moderne pour présenter la Guilde de la Boulangerie et son équipe royale.
 
-## Prerequis
 
-- Node.js >= 18.18.
-- npm >= 9 (installé avec Node.js).
+## À propos
 
-## Installation
+Cette application présente :
+- La Guilde de la Boulangerie et son équipe
+- Une page de croissantage interactive avec intégration Slack
+- Un mini-jeu interactif
+- Design responsive et moderne
 
-1. Clonez et allez dans le depot :
-   ```bash
-   https://github.com/projet-boulangerie-org/projet-boulangerie.git
-   cd projet-boulangerie
-   ```
-2. Installez les dependances :
-   ```bash
-   npm install
-   ```
+## Technologies
 
-## Scripts npm utiles
+- **Framework** : Next.js 15.5 avec App Router
+- **UI** : React 19.1, Tailwind CSS 4.1, Lucide Icons
+- **Langage** : TypeScript 5.9
+- **Développement** : ESLint 9, Turbopack
+- **Déploiement** : GitHub Pages (export statique)
 
-- `npm run dev` : lance le serveur de developpement (Turbopack) sur `http://localhost:3000`.
-- `npm run build` : genere l'export statique dans le dossier `out/`.
-- `npm run lint` : execute ESLint sur le projet.
+## Prérequis
+
+- Node.js >= 20.x LTS
+- npm >= 10 (installé avec Node.js)
+
+## Démarrage rapide
+
+```bash
+# Cloner le dépôt
+git clone https://github.com/projet-boulangerie/projet-boulangerie.git
+cd projet-boulangerie
+
+# Installer les dépendances
+npm install
+
+# Lancer le serveur de développement
+npm run dev
+```
+
+Ouvrez [http://localhost:3000](http://localhost:3000) dans votre navigateur
+
+## Scripts disponibles
+
+- **`npm run dev`** : Lance le serveur de développement avec Turbopack
+- **`npm run build`** : Génère l'export statique pour la production dans le dossier `out/`
+- **`npm start`** : Lance le serveur de production Next.js
+- **`npm run lint`** : Exécute ESLint pour vérifier la qualité du code
+- **`npm run deploy`** : Build et déploie automatiquement sur GitHub Pages
 
 
 ## Architecture du projet
