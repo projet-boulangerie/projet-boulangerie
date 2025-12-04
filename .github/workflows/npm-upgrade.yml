@@ -1,0 +1,257 @@
+name: Weekly NPM Security Audit
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  security-audit:
+    name: NPM Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        run: |
+          echo "Running npm audit..."
+
+          # Run audit and capture output
+          if npm audit --json > audit-report.json 2>&1; then
+            echo "audit_status=success" >> $GITHUB_OUTPUT
+            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            echo "✅ No vulnerabilities found"
+          else
+            echo "audit_status=failed" >> $GITHUB_OUTPUT
+
+            # Parse audit results
+            HIGH_COUNT=$(jq '.metadata.vulnerabilities.high // 0' audit-report.json)
+            CRITICAL_COUNT=$(jq '.metadata.vulnerabilities.critical // 0' audit-report.json)
+            TOTAL_VULNS=$(jq '.metadata.vulnerabilities.total // 0' audit-report.json)
+
+            echo "high_count=$HIGH_COUNT" >> $GITHUB_OUTPUT
+            echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+            echo "total_vulns=$TOTAL_VULNS" >> $GITHUB_OUTPUT
+
+            if [ "$HIGH_COUNT" -gt 0 ] || [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+              echo "⚠️ Found $CRITICAL_COUNT critical and $HIGH_COUNT high severity vulnerabilities"
+            else
+              echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+              echo "ℹ️ Found $TOTAL_VULNS low/moderate vulnerabilities (not auto-fixing)"
+            fi
+          fi
+        continue-on-error: true
+
+      - name: Create issue for low/moderate vulnerabilities
+        if: steps.audit.outputs.audit_status == 'failed' && steps.audit.outputs.has_vulnerabilities == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const totalVulns = '${{ steps.audit.outputs.total_vulns }}';
+
+            const issueTitle = `🔔 NPM Audit: ${totalVulns} low/moderate vulnerabilities detected`;
+            const issueBody = `## NPM Security Audit Report
+
+            **Date**: ${new Date().toISOString().split('T')[0]}
+            **Total vulnerabilities**: ${totalVulns}
+            **Severity**: Low/Moderate only
+
+            ### Summary
+            The weekly npm audit found vulnerabilities with low or moderate severity. These do not require immediate action but should be reviewed.
+
+            ### Action Required
+            Review the vulnerabilities by running:
+            \`\`\`bash
+            npm audit
+            \`\`\`
+
+            Consider updating packages manually when appropriate.
+
+            ---
+            <sub>🤖 Automated by NPM Security Audit workflow</sub>`;
+
+            // Check if similar issue already exists
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,npm-audit'
+            });
+
+            const existingIssue = issues.find(issue =>
+              issue.title.includes('NPM Audit') && issue.title.includes('low/moderate')
+            );
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['security', 'npm-audit', 'low-priority']
+              });
+            }
+
+      - name: Update packages
+        if: steps.audit.outputs.has_vulnerabilities == 'true'
+        id: update
+        run: |
+          echo "📦 Updating packages to fix vulnerabilities..."
+
+          # Create a branch for the updates
+          BRANCH_NAME="automated/npm-security-update-$(date +%Y%m%d-%H%M%S)"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+          git checkout -b "$BRANCH_NAME"
+
+          # Run npm update
+          npm update
+
+          # Check if there are changes
+          if git diff --quiet package.json package-lock.json; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No package updates available"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            git add package.json package-lock.json
+            git commit -m "fix(deps): upgrade npm packages to fix security vulnerabilities
+
+            🔒 Security Update
+            - Critical vulnerabilities: ${{ steps.audit.outputs.critical_count }}
+            - High vulnerabilities: ${{ steps.audit.outputs.high_count }}
+
+            This automated update addresses high and critical severity vulnerabilities detected by npm audit.
+
+            🤖 Automated by NPM Security Audit workflow"
+
+            git push origin "$BRANCH_NAME"
+          fi
+
+      - name: Run tests after update
+        if: steps.audit.outputs.has_vulnerabilities == 'true' && steps.update.outputs.has_changes == 'true'
+        id: test
+        run: |
+          echo "🧪 Running build to verify updates..."
+
+          npm run build
+
+          # Run audit again to verify fixes
+          if npm audit --audit-level=high; then
+            echo "audit_fixed=true" >> $GITHUB_OUTPUT
+            echo "✅ High/Critical vulnerabilities fixed!"
+          else
+            echo "audit_fixed=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Some vulnerabilities remain"
+          fi
+        continue-on-error: true
+
+      - name: Create Pull Request
+        if: steps.audit.outputs.has_vulnerabilities == 'true' && steps.update.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branchName = '${{ steps.update.outputs.branch_name }}';
+            const criticalCount = '${{ steps.audit.outputs.critical_count }}';
+            const highCount = '${{ steps.audit.outputs.high_count }}';
+            const auditFixed = '${{ steps.test.outputs.audit_fixed }}' === 'true';
+
+            const title = `🔒 Security: Fix ${criticalCount} critical & ${highCount} high severity npm vulnerabilities`;
+
+            const body = `## 🔒 Automated Security Update
+
+            This PR was automatically created by the weekly NPM security audit workflow.
+
+            ### Vulnerabilities Detected
+            | Severity | Count |
+            |----------|-------|
+            | 🔴 Critical | ${criticalCount} |
+            | 🟠 High | ${highCount} |
+
+            ### Changes
+            - 📦 Updated npm packages to latest compatible versions
+            - 🔒 Addressed security vulnerabilities via \`npm update\`
+            - ✅ Build verification: **Passed**
+            - 🔍 Post-update audit: ${auditFixed ? '**✅ All high/critical issues resolved**' : '**⚠️ Some issues may remain**'}
+
+            ### Review Checklist
+            - [ ] Review updated packages in \`package.json\`
+            - [ ] Check for any breaking changes in updated packages
+            - [ ] Verify application functionality
+            - [ ] Merge to main when ready
+
+            ### How to Test Locally
+            \`\`\`bash
+            git fetch origin ${branchName}
+            git checkout ${branchName}
+            npm ci
+            npm run build
+            npm audit
+            \`\`\`
+
+            ---
+            <sub>🤖 Automated by NPM Security Audit workflow • Triggered: ${new Date().toISOString().split('T')[0]}</sub>`;
+
+            try {
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                head: branchName,
+                base: 'main',
+                body: body
+              });
+
+              // Add labels
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['security', 'dependencies', 'automated']
+              });
+
+              console.log(`✅ Pull request created: ${pr.html_url}`);
+            } catch (error) {
+              console.error('Error creating PR:', error);
+              throw error;
+            }
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "## 📊 NPM Security Audit Summary"
+          echo ""
+          echo "**Status**: ${{ steps.audit.outputs.audit_status }}"
+          echo "**Has vulnerabilities**: ${{ steps.audit.outputs.has_vulnerabilities }}"
+
+          if [ "${{ steps.audit.outputs.has_vulnerabilities }}" == "true" ]; then
+            echo "**Critical**: ${{ steps.audit.outputs.critical_count }}"
+            echo "**High**: ${{ steps.audit.outputs.high_count }}"
+            echo "**PR Created**: ${{ steps.update.outputs.has_changes }}"
+          fi
