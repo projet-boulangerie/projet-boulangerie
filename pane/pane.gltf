@@ -1,0 +1,158 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "obj2gltf-lite"
+  },
+  "buffers": [
+    {
+      "byteLength": 2631204,
+      "uri": "pane.bin"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 732708,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 732708,
+      "byteLength": 732708,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1465416,
+      "byteLength": 488472,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1953888,
+      "byteLength": 677316,
+      "target": 34963
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 61059,
+      "type": "VEC3",
+      "min": [
+        -1.718832,
+        -1.519433,
+        -0.977355
+      ],
+      "max": [
+        1.718832,
+        1.519433,
+        0.977355
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 61059,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 61059,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 338658,
+      "type": "SCALAR"
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/pane.jpg"
+    },
+    {
+      "uri": "textures/normals.jpg"
+    },
+    {
+      "uri": "textures/occlusion.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9985,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    }
+  ],
+  "materials": [
+    {
+      "name": "PaneMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0,
+        "roughnessFactor": 0.9
+      },
+      "normalTexture": {
+        "index": 1,
+        "scale": 1
+      },
+      "occlusionTexture": {
+        "index": 2,
+        "strength": 1
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "PaneMesh",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "Pane"
+    }
+  ],
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0
+}
