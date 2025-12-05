@@ -102,7 +102,9 @@ export default function BaguettePage() {
         type="module"
         strategy="afterInteractive"
       />
-
+      <span className="ml-6 mt-1 text-xs uppercase tracking-[0.4em] text-white/60 group-hover:text-white/80 transition-colors">
+      Status Projet : Devnet
+      </span>
       <section className="relative z-10 flex min-h-screen w-full flex-col gap-12 px-6 pb-20 pt-28 lg:flex-row lg:items-start lg:gap-20 lg:px-16">
         <div className="flex-1 space-y-10">
           <header className="space-y-6">
