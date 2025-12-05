@@ -1,4 +1,5 @@
-﻿﻿# Projet Boulangerie
+
+# Projet Boulangerie
 
 Une application web moderne pour présenter la Guilde de la Boulangerie et son équipe royale.
 
