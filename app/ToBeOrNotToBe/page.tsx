@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
@@ -102,10 +103,12 @@ export default function GamePage() {
       <div className="relative z-10 w-full max-w-5xl text-center flex flex-col justify-center gap-8 md:gap-12">
         <header className="space-y-3">
           <h1 className="text-3xl md:text-5xl font-medieval text-boulange-gold">
-            Le Grand Compte à Rebours
+            {hasLaunched ? "Projects of the Guilde" : "Le Grand Compte à Rebours"}
           </h1>
           <p className="text-sm md:text-base text-white/70">
-            Countdown to the official CTF launch
+            {hasLaunched
+              ? "Discover the sacred initiatives of our artisan bakers"
+              : "Countdown to the official CTF launch"}
           </p>
         </header>
 
@@ -121,13 +124,36 @@ export default function GamePage() {
         )}
 
         {hasLaunched ? (
-          <div className="rounded-2xl border border-boulange-gold/40 bg-boulange-gold/10 backdrop-blur p-8 md:p-12">
-            <p className="text-2xl md:text-4xl font-medieval text-boulange-gold animate-pulse">
-              🎉 The CTF has officially launched! 🎉
-            </p>
-            <p className="mt-4 text-base md:text-lg text-white/80">
-              Bonne chance, boulanger(e)s! May the sacred sourdough be with you.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+            {[
+              {
+                title: "Projet Croissant",
+                description: "Master the art of the perfect croissant. Layers upon layers of buttery goodness waiting for you.",
+                href: "/croissant",
+                ctaLabel: "Start Baking",
+                icon: "🥐"
+              },
+              {
+                title: "Projet Baguette",
+                description: "The classic French staple. Crisp crust, soft crumb. Join the legacy of the true baguette.",
+                href: "/baguette",
+                ctaLabel: "Knead Now",
+                icon: "🥖"
+              }
+            ].map((context) => (
+              <section key={context.title} className="flex flex-col gap-8 rounded-3xl border border-white/10 bg-slate-900/60 backdrop-blur px-8 py-10 transition-transform hover:scale-105">
+                <div className="space-y-4 text-center">
+                  <span className="text-4xl">{context.icon}</span>
+                  <h3 className="text-2xl font-bold text-white">{context.title}</h3>
+                  <p className="text-white/70">{context.description}</p>
+                </div>
+                {context.ctaLabel && context.href ? (
+                  <Link href={context.href} className="self-center inline-flex items-center justify-center px-6 py-3 rounded-full bg-gradient-to-r from-sky-400 to-sky-500 text-slate-900 font-medium shadow-lg hover:brightness-110 transition">
+                    {context.ctaLabel}
+                  </Link>
+                ) : null}
+              </section>
+            ))}
           </div>
         ) : (
           <div
