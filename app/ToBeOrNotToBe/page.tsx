@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
-const targetDate = new Date("2026-01-16T20:00:00");
+const targetDate = new Date("2026-03-16T20:00:00");
 
 interface TimeLeft {
   total: number;

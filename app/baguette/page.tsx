@@ -64,7 +64,7 @@ const completionWidth =
 const modelSrc = `${basePath}/pane/pane.gltf`;
 const posterSrc = `${basePath}/pane/textures/pane.jpg`;
 
-const targetDate = new Date("2026-01-16T20:00:00");
+const targetDate = new Date("2026-03-16T20:00:00");
 
 const calculateTimeLeft = () => {
   const now = Date.now();
