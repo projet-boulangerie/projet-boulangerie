@@ -32,20 +32,19 @@ export default function AnimatedBackground() {
     window.addEventListener("resize", setCanvasSize);
 
     const particles: Particle[] = [];
-    const particleCount = 50;
-    const goldColor = "#D4AF37";
+    const particleCount = 200; // Increased for "full of stars"
 
     // Initialize particles
     for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        size: Math.random() * 3 + 1,
-        opacity: Math.random() * 0.5 + 0.1,
+        vx: (Math.random() - 0.5) * 0.05, // Slower movement for stars
+        vy: (Math.random() - 0.5) * 0.05,
+        size: Math.random() * 2 + 0.5, // Smaller stars
+        opacity: Math.random() * 0.3 + 0.05, // Lower opacity: 0.05 to 0.35
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.02,
+        rotationSpeed: (Math.random() - 0.5) * 0.002, // Very slow rotation
       });
     }
 
@@ -54,28 +53,13 @@ export default function AnimatedBackground() {
       ctx.translate(particle.x, particle.y);
       ctx.rotate(particle.rotation);
 
-      // Draw sparkle/grain
+      // Draw star
       ctx.globalAlpha = particle.opacity;
-      ctx.fillStyle = goldColor;
+      ctx.fillStyle = "#FFFFFF"; // White stars
 
-      // Create a sparkle effect
-      const points = 4;
-      const outerRadius = particle.size;
-      const innerRadius = particle.size / 2;
-
+      // Create a star/circle effect
       ctx.beginPath();
-      for (let i = 0; i < points * 2; i++) {
-        const radius = i % 2 === 0 ? outerRadius : innerRadius;
-        const angle = (i * Math.PI) / points;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.closePath();
+      ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
@@ -87,7 +71,6 @@ export default function AnimatedBackground() {
       particles.forEach((particle) => {
         particle.x += particle.vx;
         particle.y += particle.vy;
-        particle.rotation += particle.rotationSpeed;
 
         // Wrap around screen edges
         if (particle.x < 0) particle.x = canvas.width;
@@ -95,9 +78,10 @@ export default function AnimatedBackground() {
         if (particle.y < 0) particle.y = canvas.height;
         if (particle.y > canvas.height) particle.y = 0;
 
-        // Pulse opacity
-        particle.opacity += Math.sin(Date.now() * 0.001 + particle.x) * 0.001;
-        particle.opacity = Math.max(0.1, Math.min(0.6, particle.opacity));
+        // Pulse opacity slightly
+        const pulse = Math.sin(Date.now() * 0.001 + particle.x) * 0.05;
+        const currentOpacity = Math.max(0.05, Math.min(0.4, particle.opacity + pulse));
+        particle.opacity = currentOpacity;
 
         drawParticle(particle);
       });
