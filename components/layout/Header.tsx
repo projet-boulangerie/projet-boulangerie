@@ -5,7 +5,7 @@ import JoinGuildModal from "@/components/JoinGuildModal";
 // components/Header.tsx
 export function Header() {
   return (
-    <div className="top-0 z-50 bg-[var(--background)] pl-6 pr-6 pt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div className="top-0 z-50 bg-transparent pl-6 pr-6 pt-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4 relative">
       <a href={`${basePath}/`} className="group">
         <div className="flex flex-col">
           <h1 className="text-2xl font-medium font-medieval text-boulange-gold">

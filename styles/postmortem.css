@@ -1,0 +1,763 @@
+/* =============================================================================
+   PROJET BOULANGERIE — POST-MORTEM PAGE
+   Design System Variables — Version 1.0 — April 2026
+   ============================================================================= */
+
+:root {
+  /* --- COLOR: Charred Blacks --- */
+  --color-char-deep:     #0d0b08;
+  --color-char-base:     #151210;
+  --color-char-raised:   #1e1a16;
+  --color-char-edge:     #2a2420;
+
+  /* --- COLOR: Ash Greys --- */
+  --color-ash-dark:      #3d3730;
+  --color-ash-mid:       #6b6057;
+  --color-ash-light:     #a89f95;
+  --color-ash-pale:      #cec5bb;
+  --color-ash-faint:     #e8e0d7;
+
+  /* --- COLOR: Ember Oranges --- */
+  --color-ember-core:    #e8622a;
+  --color-ember-warm:    #c44d1a;
+  --color-ember-glow:    #f28c4e;
+  --color-ember-fade:    #7a3010;
+
+  /* --- COLOR: Faded Ambers --- */
+  --color-amber-bright:  #d4a84b;
+  --color-amber-mid:     #a07830;
+  --color-amber-dull:    #6b5020;
+  --color-amber-ghost:   #3d2e10;
+
+  /* --- COLOR: Cold Smoke --- */
+  --color-smoke-warm:    #7a7268;
+  --color-smoke-cool:    #6e6e72;
+  --color-smoke-pale:    #9e9ea2;
+  --color-smoke-ghost:   rgba(180, 175, 168, 0.06);
+
+  /* --- COLOR: Semantic Aliases --- */
+  --color-text-primary:   #a89f95;
+  --color-text-secondary: #6b6057;
+  --color-text-muted:     #3d3730;
+  --color-text-heading:   #cec5bb;
+  --color-text-accent:    #f28c4e;
+  --color-text-date:      #a07830;
+  --color-bg-base:        #0d0b08;
+  --color-bg-surface:     #151210;
+  --color-bg-card:        #1e1a16;
+  --color-border:         #2a2420;
+  --color-border-accent:  #7a3010;
+
+  /* --- TYPOGRAPHY: Font Families --- */
+  --font-heading:    var(--font-im-fell);
+  --font-subheading: var(--font-cormorant);
+  --font-body:       var(--font-lora);
+  --font-mono:       'Courier New', Courier, monospace;
+
+  /* --- TYPOGRAPHY: Type Scale --- */
+  --text-xs:       clamp(0.65rem,  1vw,   0.75rem);
+  --text-sm:       clamp(0.8rem,   1.2vw, 0.9rem);
+  --text-base:     clamp(0.95rem,  1.5vw, 1.05rem);
+  --text-md:       clamp(1.1rem,   2vw,   1.25rem);
+  --text-lg:       clamp(1.3rem,   2.5vw, 1.6rem);
+  --text-xl:       clamp(1.7rem,   3.5vw, 2.2rem);
+  --text-2xl:      clamp(2.2rem,   5vw,   3.2rem);
+  --text-display:  clamp(3rem,     8vw,   5.5rem);
+
+  /* --- TYPOGRAPHY: Weights --- */
+  --weight-light:    300;
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+
+  /* --- TYPOGRAPHY: Letter Spacing --- */
+  --tracking-tight:   -0.01em;
+  --tracking-normal:   0em;
+  --tracking-wide:     0.05em;
+  --tracking-wider:    0.12em;
+  --tracking-widest:   0.22em;
+
+  /* --- TYPOGRAPHY: Line Heights --- */
+  --leading-tight:   1.1;
+  --leading-snug:    1.3;
+  --leading-normal:  1.6;
+  --leading-relaxed: 1.8;
+
+  /* --- LAYOUT --- */
+  --content-max-width:   680px;
+  --content-wide-width:  860px;
+  --section-gap:         clamp(3rem, 8vw, 6rem);
+  --section-gap-sm:      clamp(1.5rem, 4vw, 3rem);
+  --page-padding-x:      clamp(1.25rem, 5vw, 3rem);
+
+  /* --- BORDERS & RADIUS --- */
+  --radius-sm:    3px;
+  --radius-md:    6px;
+  --border-width: 1px;
+
+  /* --- SHADOWS & GLOW --- */
+  --shadow-card:       0 2px 20px rgba(0, 0, 0, 0.6);
+  --shadow-ember-glow: 0 0 8px 2px rgba(242, 140, 78, 0.35);
+  --shadow-text-ember: 0 0 12px rgba(232, 98, 42, 0.4);
+
+  /* --- Z-INDEX SCALE --- */
+  --z-base:      0;
+  --z-raised:    10;
+  --z-particles: 20;
+  --z-overlay:   100;
+  --z-curtain:   9999;
+
+  /* --- TRANSITIONS --- */
+  --transition-fast:   150ms ease;
+  --transition-base:   300ms ease;
+  --transition-slow:   600ms ease;
+  --transition-crawl: 1200ms ease;
+}
+
+/* =============================================================================
+   RESET & BASE
+   ============================================================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Smoke veil overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(
+      ellipse 120% 80% at 50% 30%,
+      rgba(110, 110, 114, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 80% 60% at 10% 90%,
+      rgba(122, 114, 104, 0.06) 0%,
+      transparent 50%
+    );
+  pointer-events: none;
+  z-index: var(--z-base);
+}
+
+/* =============================================================================
+   PAGE CURTAIN — ENTRANCE ANIMATION
+   ============================================================================= */
+
+@keyframes curtain-lift {
+  0%   { opacity: 1; }
+  60%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.page-curtain {
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-char-deep);
+  z-index: var(--z-curtain);
+  animation: curtain-lift 2.5s ease-in-out forwards;
+  pointer-events: none;
+}
+
+/* =============================================================================
+   PAGE CONTENT ENTRANCE
+   ============================================================================= */
+
+@keyframes content-emerge {
+  0%   { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.page-content {
+  animation: content-emerge 1.5s ease-out 2.2s both;
+  will-change: opacity, transform;
+}
+
+/* =============================================================================
+   VIGNETTE
+   ============================================================================= */
+
+.page-vignette {
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(
+      ellipse 100% 100% at 50% 50%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
+  pointer-events: none;
+  z-index: var(--z-overlay);
+}
+
+/* =============================================================================
+   LAYOUT
+   ============================================================================= */
+
+.container {
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+  padding-inline: var(--page-padding-x);
+}
+
+.container--wide {
+  max-width: var(--content-wide-width);
+  margin-inline: auto;
+  padding-inline: var(--page-padding-x);
+}
+
+/* =============================================================================
+   SECTION LABELS
+   ============================================================================= */
+
+.section-label {
+  font-family: var(--font-subheading);
+  font-weight: var(--weight-light);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
+  display: block;
+}
+
+/* =============================================================================
+   DECORATIVE RULE
+   ============================================================================= */
+
+.deco-rule {
+  width: 60%;
+  height: 1px;
+  margin-inline: auto;
+  background: linear-gradient(to right, transparent, var(--color-border-accent), transparent);
+  border: none;
+  display: block;
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+/* Ember particles */
+@keyframes ember-rise {
+  0% {
+    transform: translateY(0px) translateX(0px) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(calc(var(--p-rise) * -0.5)) translateX(var(--p-sway)) scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(calc(var(--p-rise) * -1)) translateX(calc(var(--p-sway) * -0.3)) scale(0.2);
+    opacity: 0;
+  }
+}
+
+.particle {
+  position: absolute;
+  width: var(--p-w, 2px);
+  height: var(--p-h, 4px);
+  border-radius: 50%;
+  background-color: var(--p-color, #f28c4e);
+  box-shadow: 0 0 4px 1px var(--p-color, #f28c4e);
+  animation: ember-rise var(--p-dur, 5s) var(--p-delay, 0s) ease-in infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* Smoke wisps */
+@keyframes smoke-rise {
+  0% {
+    transform: translateY(0px) translateX(0px) scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.6;
+  }
+  70% {
+    opacity: 0.3;
+    transform: translateY(calc(var(--s-rise, 80px) * -0.7)) translateX(var(--s-drift, 10px)) scale(1.4);
+  }
+  100% {
+    transform: translateY(calc(var(--s-rise, 80px) * -1)) translateX(calc(var(--s-drift, 10px) * -0.5)) scale(1.8);
+    opacity: 0;
+  }
+}
+
+.smoke-wisp {
+  position: absolute;
+  width: var(--s-w, 80px);
+  height: var(--s-h, 120px);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(110, 110, 114, 0.15) 0%, transparent 70%);
+  filter: blur(14px);
+  animation: smoke-rise var(--s-dur, 10s) var(--s-delay, 0s) ease-out infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* Text flicker */
+@keyframes text-flicker {
+  0%   { opacity: 1; }
+  4%   { opacity: 0.92; }
+  8%   { opacity: 1; }
+  15%  { opacity: 1; }
+  17%  { opacity: 0.88; }
+  19%  { opacity: 1; }
+  35%  { opacity: 1; }
+  37%  { opacity: 0.94; }
+  39%  { opacity: 1; }
+  55%  { opacity: 1; }
+  57%  { opacity: 0.85; }
+  60%  { opacity: 0.91; }
+  62%  { opacity: 1; }
+  80%  { opacity: 1; }
+  82%  { opacity: 0.96; }
+  84%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.text-flicker {
+  animation: text-flicker 8s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* Stamp entrance */
+@keyframes stamp-appear {
+  0%   { opacity: 0; transform: rotate(-12deg) scale(1.4); }
+  60%  { opacity: 0; transform: rotate(-12deg) scale(1.4); }
+  70%  { opacity: 1; transform: rotate(-12deg) scale(0.96); }
+  78%  { opacity: 0.85; transform: rotate(-12deg) scale(1.02); }
+  85%  { opacity: 1; transform: rotate(-12deg) scale(1); }
+  100% { opacity: 1; transform: rotate(-12deg) scale(1); }
+}
+
+/* =============================================================================
+   HEADER SECTION
+   ============================================================================= */
+
+.site-header {
+  position: relative;
+  text-align: center;
+  padding-top: clamp(5rem, 12vw, 9rem);
+  padding-bottom: clamp(3rem, 6vw, 5rem);
+  overflow: visible;
+}
+
+/* Ghost text watermark */
+.ghost-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-heading);
+  font-size: var(--text-display);
+  font-style: italic;
+  color: var(--color-ash-pale);
+  opacity: 0.045;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: var(--tracking-wider);
+  z-index: 0;
+  line-height: 1;
+}
+
+/* Stamp / seal */
+.header-stamp {
+  position: absolute;
+  top: clamp(1.5rem, 4vw, 2.5rem);
+  right: clamp(0rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(72px, 14vw, 96px);
+  height: clamp(72px, 14vw, 96px);
+  border: 3px solid var(--color-ember-core);
+  border-radius: 50%;
+  transform: rotate(-12deg);
+  animation: stamp-appear 3.8s ease-out both;
+  z-index: var(--z-raised);
+}
+
+.header-stamp::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--color-ember-fade);
+  border-radius: 50%;
+}
+
+.header-stamp::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1px dashed var(--color-ember-fade);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+
+.stamp-text {
+  font-family: var(--font-heading);
+  font-size: clamp(0.55rem, 1.8vw, 0.75rem);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-ember-core);
+  text-align: center;
+  line-height: 1.2;
+  text-shadow: var(--shadow-text-ember);
+}
+
+/* Guild sigil */
+.guild-sigil {
+  display: block;
+  margin-inline: auto;
+  margin-bottom: clamp(1rem, 2.5vw, 1.5rem);
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  color: var(--color-amber-dull);
+  opacity: 0.85;
+  filter: drop-shadow(0 0 6px rgba(242, 140, 78, 0.15));
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* H1 */
+.site-title {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-heading);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-tight);
+  margin-bottom: clamp(0.6rem, 1.5vw, 1rem);
+  position: relative;
+  z-index: 1;
+}
+
+/* Subtitle */
+.site-subtitle {
+  font-family: var(--font-subheading);
+  font-weight: var(--weight-light);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: clamp(0.5rem, 1.2vw, 0.75rem);
+  position: relative;
+  z-index: 1;
+}
+
+/* Tagline */
+.site-tagline {
+  font-family: var(--font-subheading);
+  font-style: italic;
+  font-weight: var(--weight-light);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-ash-mid);
+  margin-bottom: clamp(0.75rem, 2vw, 1.25rem);
+  position: relative;
+  z-index: 1;
+}
+
+/* Date of death */
+.site-death-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-date);
+  position: relative;
+  z-index: 1;
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+}
+
+/* Particle & smoke container */
+.particle-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+  z-index: var(--z-particles);
+}
+
+/* =============================================================================
+   SECTION: CE QU'IL ETAIT
+   ============================================================================= */
+
+.section-what {
+  padding-top: var(--section-gap);
+  position: relative;
+}
+
+.lead-paragraph {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: var(--text-md);
+  color: var(--color-ash-pale);
+  line-height: var(--leading-relaxed);
+  border-left: 2px solid var(--color-border-accent);
+  padding-left: 1.25rem;
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
+}
+
+.body-paragraph {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  line-height: var(--leading-relaxed);
+  margin-bottom: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.body-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* =============================================================================
+   SECTION: CHRONOLOGIE
+   ============================================================================= */
+
+.section-timeline {
+  padding-top: var(--section-gap);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2.5vw, 1.4rem);
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+}
+
+.timeline-entry {
+  display: grid;
+  grid-template-columns: 120px 20px 1fr;
+  align-items: center;
+  gap: 0 clamp(0.5rem, 1.5vw, 1rem);
+}
+
+.timeline-date {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-date);
+  text-align: right;
+  line-height: var(--leading-snug);
+}
+
+.timeline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-amber-dull);
+  justify-self: center;
+  flex-shrink: 0;
+}
+
+.timeline-date--ctf {
+  color: var(--color-ember-core);
+}
+
+.timeline-dot--ctf {
+  background: var(--color-ember-core);
+  box-shadow: 0 0 6px 2px rgba(232, 98, 42, 0.4);
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.timeline-label {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: var(--leading-snug);
+}
+
+.timeline-label--ctf {
+  color: var(--color-ember-glow);
+  font-style: italic;
+}
+
+/* =============================================================================
+   SECTION: MOT DE CLOTURE
+   ============================================================================= */
+
+.section-closing {
+  padding-top: var(--section-gap);
+  text-align: center;
+}
+
+.closing-statement {
+  font-family: var(--font-heading);
+  font-style: italic;
+  font-size: var(--text-lg);
+  color: var(--color-ash-pale);
+  line-height: var(--leading-snug);
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.closing-statement p {
+  margin-bottom: 0.4em;
+}
+
+.closing-statement p:last-child {
+  margin-bottom: 0;
+}
+
+.closing-signature {
+  font-family: var(--font-subheading);
+  font-style: italic;
+  font-weight: var(--weight-light);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: right;
+  display: block;
+}
+
+/* =============================================================================
+   FOOTER
+   ============================================================================= */
+
+.site-footer {
+  padding-top: var(--section-gap);
+  padding-bottom: clamp(3rem, 8vw, 5rem);
+  text-align: center;
+}
+
+.footer-context {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: var(--tracking-wider);
+  margin-bottom: 0.6rem;
+}
+
+.footer-link {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--color-ash-mid);
+  text-decoration: underline;
+  text-decoration-color: var(--color-ash-dark);
+  text-underline-offset: 3px;
+  transition: color var(--transition-base), text-decoration-color var(--transition-base);
+  display: inline-block;
+  margin-bottom: 0.6rem;
+}
+
+.footer-link:hover {
+  color: var(--color-ash-pale);
+  text-decoration-color: var(--color-ash-mid);
+}
+
+.footer-final {
+  font-family: var(--font-subheading);
+  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--color-ash-dark);
+  display: block;
+  margin-top: 1.5rem;
+  letter-spacing: var(--tracking-wide);
+}
+
+/* =============================================================================
+   TEXTURE: CHARRED WOOD (timeline)
+   ============================================================================= */
+
+.texture-charred {
+  background-color: var(--color-bg-card);
+  background-image:
+    repeating-linear-gradient(
+      92deg,
+      transparent 0px,
+      transparent 3px,
+      rgba(255, 255, 255, 0.012) 3px,
+      rgba(255, 255, 255, 0.012) 4px
+    ),
+    repeating-linear-gradient(
+      178deg,
+      transparent 0px,
+      transparent 6px,
+      rgba(0, 0, 0, 0.08) 6px,
+      rgba(0, 0, 0, 0.08) 7px
+    ),
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(0, 0, 0, 0) 40%,
+      rgba(0, 0, 0, 0.4) 100%
+    );
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+
+@media (max-width: 480px) {
+  .timeline-entry {
+    grid-template-columns: 90px 16px 1fr;
+  }
+
+  .header-stamp {
+    width: 60px;
+    height: 60px;
+    top: 1rem;
+    right: 0.5rem;
+  }
+}
+
+/* =============================================================================
+   REDUCED MOTION — Accessibility override
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .particle,
+  .smoke-wisp,
+  .text-flicker,
+  .page-curtain,
+  .page-content,
+  .header-stamp {
+    animation: none;
+  }
+
+  .footer-link {
+    transition: none;
+  }
+
+  /* Ensure curtain and content are immediately visible/hidden correctly */
+  .page-curtain {
+    display: none;
+  }
+
+  .page-content {
+    opacity: 1;
+    transform: none;
+  }
+}
